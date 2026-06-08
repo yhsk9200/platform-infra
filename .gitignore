@@ -1,0 +1,9 @@
+# SealedSecret 재생성 시 사용하는 공개키 파일 — 커밋하지 않음
+pub-cert.pem
+
+# 로컬 디버그용 임시 파일
+*.tmp
+*.bak
+
+# kubeseal 작업 디렉토리 임시 파일
+/tmp/

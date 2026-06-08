@@ -1,0 +1,120 @@
+# =============================================================================
+# Harbor values — OCI ARM64 k3s 환경
+# =============================================================================
+# 외부 접속 주소 설정:
+#   externalURL과 ingress.hosts.core를 실제 OCI 공인 IP로 교체한다.
+#   형식: http://harbor.<OCI_PUBLIC_IP>.nip.io
+#   예시: http://harbor.140.238.1.100.nip.io
+#
+#   OCI Ephemeral IP는 인스턴스 재시작 시 변경될 수 있다.
+#   안정적인 접근이 필요하면 Reserved IP 또는 DDNS 도입을 검토한다.
+# =============================================================================
+
+expose:
+  type: ingress
+  ingress:
+    className: traefik
+    hosts:
+      core: harbor.<OCI_PUBLIC_IP>.nip.io   # TODO: 실제 OCI 공인 IP로 교체
+  tls:
+    enabled: false
+
+externalURL: http://harbor.<OCI_PUBLIC_IP>.nip.io   # TODO: 실제 OCI 공인 IP로 교체
+
+updateStrategy:
+  type: Recreate
+
+existingSecretAdminPassword: harbor-admin-secret
+existingSecretAdminPasswordKey: admin-password
+
+secretKey: ""
+existingSecretSecretKey: harbor-core-secret
+
+persistence:
+  enabled: true
+  resourcePolicy: "keep"
+  persistentVolumeClaim:
+    registry:
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 20Gi
+    jobservice:
+      jobLog:
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 5Gi
+    database:
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 10Gi
+    redis:
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 5Gi
+    trivy:
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 5Gi
+
+database:
+  type: external
+  external:
+    host: platform-db-postgres-postgresql.platform-db.svc.cluster.local
+    port: 5432
+    username: harbor_admin
+    coreDatabase: harbor_registry
+    existingSecret: harbor-db-secret
+    sslmode: disable
+
+redis:
+  type: internal
+
+trivy:
+  enabled: true
+  gitHubToken: ""
+  skipUpdate: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+core:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+jobservice:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+registry:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+exporter:
+  replicas: 1
+
+notary:
+  enabled: false

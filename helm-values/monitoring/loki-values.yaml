@@ -1,0 +1,98 @@
+# =============================================================================
+# Loki values — OCI ARM64 k3s 환경 (SingleBinary 모드)
+# =============================================================================
+# 스토리지: Node2 local-path, 30GB, filesystem backend (14d 보존)
+#
+# 향후 NAS 연동 시 storage.type을 filesystem → s3로 교체하고
+# MinIO endpoint를 지정하면 된다 (docs/adr/0003-loki-storage-nas-upgrade-path.md 참조).
+# =============================================================================
+
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  schemaConfig:
+    configs:
+      - from: "2024-04-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  storage:
+    type: filesystem
+
+  limits_config:
+    retention_period: 336h   # 14일
+    allow_structured_metadata: true
+    volume_enabled: true
+
+  pattern_ingester:
+    enabled: true
+
+deploymentMode: SingleBinary
+
+singleBinary:
+  replicas: 1
+  persistence:
+    volumeClaimsEnabled: true
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce
+    size: 30Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+ingester:
+  replicas: 0
+querier:
+  replicas: 0
+queryFrontend:
+  replicas: 0
+queryScheduler:
+  replicas: 0
+distributor:
+  replicas: 0
+compactor:
+  replicas: 0
+indexGateway:
+  replicas: 0
+bloomPlanner:
+  replicas: 0
+bloomBuilder:
+  replicas: 0
+bloomGateway:
+  replicas: 0
+
+chunksCache:
+  enabled: false
+
+resultsCache:
+  enabled: false
+
+lokiCanary:
+  enabled: false
+
+test:
+  enabled: false
+
+monitoring:
+  dashboards:
+    enabled: true
+  serviceMonitor:
+    enabled: true

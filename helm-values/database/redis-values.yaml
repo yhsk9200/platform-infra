@@ -1,0 +1,35 @@
+# =============================================================================
+# Redis values — OCI ARM64 (VM.Standard.A1.Flex)
+# =============================================================================
+# ARM64 주의: bitnamilegacy 이미지 ARM64 지원 확인 필요
+# (docs/porting-guide.md의 "ARM64 이미지 검증" 섹션 참조)
+# 검증 실패 시 대체 이미지: docker.io/redis:7-alpine (ARM64 공식 지원)
+# =============================================================================
+
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/redis
+
+architecture: standalone
+
+auth:
+  existingSecret: "redis-secret"
+  existingSecretPasswordKey: "redis-password"
+
+master:
+  persistence:
+    existingClaim: redis-pvc
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+volumePermissions:
+  enabled: true

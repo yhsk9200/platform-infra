@@ -1,0 +1,52 @@
+# =============================================================================
+# Platform PKI — Self-Signed ClusterIssuer 체인
+# =============================================================================
+# 배포 순서 (sync wave 0 — cert-manager controller 설치 후 동기화됨):
+#
+#   1. ClusterIssuer/selfsigned-issuer  — 자기 서명 루트용 issuer
+#   2. Certificate/platform-root-ca     — 루트 CA 인증서 (cert-manager ns에 저장)
+#   3. ClusterIssuer/platform-ca        — 루트 CA 기반 issuer (앱에서 참조)
+#
+# 앱에서 TLS 인증서 발급 시 cert-manager.io/cluster-issuer: platform-ca 사용.
+# prod 환경에서는 Let's Encrypt 또는 실제 CA로 교체 가능 (구조 동일).
+# =============================================================================
+
+# 1단계: 자기 서명 issuer (루트 CA 생성에만 사용)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+# 2단계: 루트 CA 인증서 (cert-manager 네임스페이스에 Secret 저장)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: platform-root-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: platform-root-ca
+  subject:
+    organizations:
+      - platform-infra
+  secretName: platform-root-ca-secret
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  duration: 87600h    # 10년
+  renewBefore: 720h   # 30일 전 갱신
+---
+# 3단계: 루트 CA 기반 ClusterIssuer (앱에서 참조하는 issuer)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: platform-ca
+spec:
+  ca:
+    secretName: platform-root-ca-secret

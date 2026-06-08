@@ -1,0 +1,46 @@
+# =============================================================================
+# Harbor Application (ApplicationSet에서 분리)
+# =============================================================================
+# Harbor chart는 StatefulSet의 volumeClaimTemplates 등 ArgoCD가 조정할 수 없는
+# 불변 필드를 동적으로 변경하기 때문에 ignoreDifferences 설정이 필요하다.
+# ApplicationSet template에서 조건부 ignoreDifferences를 처리하면 가독성이
+# 크게 떨어지므로 Harbor만 별도 Application으로 분리한다 (ADR 0002 참조).
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-registry-harbor
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: platform-infra
+  sources:
+    - repoURL: https://helm.goharbor.io
+      chart: harbor
+      targetRevision: 1.16.2
+      helm:
+        valueFiles:
+          - $values/helm-values/registry/harbor-values.yaml
+    - repoURL: "https://github.com/<YOUR_GITHUB_USERNAME>/platform-infra.git"
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-registry
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+    - group: apps
+      kind: Deployment
+      jqPathExpressions:
+        - .spec.template.spec.containers[].env[] | select(.name == "INTERNAL_TLS_ENABLED")

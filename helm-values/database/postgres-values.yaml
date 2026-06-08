@@ -1,0 +1,77 @@
+# =============================================================================
+# PostgreSQL values — OCI ARM64 (VM.Standard.A1.Flex)
+# =============================================================================
+# ARM64 주의: bitnamilegacy 이미지가 aarch64 멀티아치 매니페스트를 포함하는지
+# 배포 전 확인 필요 (docs/porting-guide.md의 "ARM64 이미지 검증" 섹션 참조).
+# 검증 실패 시 대체 이미지: docker.io/postgres:17-alpine (ARM64 공식 지원)
+# =============================================================================
+
+global:
+  security:
+    allowInsecureImages: true
+  postgresql:
+    auth:
+      existingSecret: "postgres-db-secret"
+      secretKeys:
+        adminPasswordKey: "postgres-password"
+        userPasswordKey: "keycloak-password"
+      database: "keycloak_db"
+      username: "keycloak_admin"
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/postgresql
+
+architecture: standalone
+
+primary:
+  persistence:
+    existingClaim: postgres-pvc
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # ---------------------------------------------------------------------------
+  # Harbor DB 초기화 스크립트 (신규 클러스터 최초 기동 시 자동 실행)
+  # ---------------------------------------------------------------------------
+  # IF NOT EXISTS 패턴으로 멱등성 보장. 이미 초기화된 PVC에는 영향 없음.
+  # ---------------------------------------------------------------------------
+  initdb:
+    scripts:
+      init-harbor-db.sh: |
+        #!/bin/bash
+        set -euo pipefail
+        echo "=== Harbor database initialization ==="
+        export PGPASSWORD="$(cat /run/secrets/db/postgres-password)"
+        HARBOR_DB_PASSWORD="$(cat /run/secrets/db/harbor-password)"
+
+        psql -v ON_ERROR_STOP=1 \
+          --username "postgres" \
+          --dbname "postgres" \
+          --set harbor_password="${HARBOR_DB_PASSWORD}" <<-'EOSQL'
+          SELECT format('CREATE ROLE harbor_admin WITH LOGIN PASSWORD %L', :'harbor_password')
+          WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'harbor_admin')\gexec
+
+          ALTER ROLE harbor_admin WITH LOGIN PASSWORD :'harbor_password';
+
+          SELECT 'CREATE DATABASE harbor_registry OWNER harbor_admin'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'harbor_registry')\gexec
+
+          GRANT ALL PRIVILEGES ON DATABASE harbor_registry TO harbor_admin;
+        EOSQL
+        unset PGPASSWORD
+        echo "=== Harbor database initialization complete ==="
+  extraVolumes:
+    - name: db-secrets
+      secret:
+        secretName: postgres-db-secret
+  extraVolumeMounts:
+    - name: db-secrets
+      mountPath: /run/secrets/db
+      readOnly: true
+
+volumePermissions:
+  enabled: true

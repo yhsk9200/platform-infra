@@ -166,7 +166,7 @@ spec:
       # Git manifest app과 Helm app을 gitPath 유무로 분기한다.
       {{- if .gitPath }}
       source:
-        repoURL: "https://github.com/<YOUR_GITHUB_USERNAME>/platform-infra.git"
+        repoURL: "https://github.com/yhsk9200/platform-infra.git"
         targetRevision: main
         path: "{{ .gitPath }}"
       {{- else }}
@@ -177,7 +177,7 @@ spec:
           helm:
             valueFiles:
               - "$values/{{ .valuesFile }}"
-        - repoURL: "https://github.com/<YOUR_GITHUB_USERNAME>/platform-infra.git"
+        - repoURL: "https://github.com/yhsk9200/platform-infra.git"
           targetRevision: main
           ref: values
       {{- end }}

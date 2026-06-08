@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: "https://github.com/<YOUR_GITHUB_USERNAME>/platform-infra.git"
+    repoURL: "https://github.com/yhsk9200/platform-infra.git"
     targetRevision: main
     path: apps
   destination:

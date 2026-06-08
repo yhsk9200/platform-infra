@@ -1,0 +1,7 @@
+# Ansible collection 의존성
+# 설치: ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: community.general    # modprobe
+    version: ">=8.0.0"
+  - name: ansible.posix        # sysctl
+    version: ">=1.5.0"

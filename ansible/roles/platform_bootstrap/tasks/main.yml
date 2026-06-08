@@ -1,0 +1,44 @@
+# =============================================================================
+# platform_bootstrap — Root Application 적용 후 ArgoCD에 인계
+# =============================================================================
+# 이 시점에서 시크릿 계층은 secrets_seed가 이미 시드했으므로, ArgoCD가
+# 동기화하는 워크로드(postgres, keycloak, harbor 등)가 시작 시 시크릿을
+# 찾을 수 있다.
+# =============================================================================
+
+- name: Root Application manifest 템플릿 생성
+  ansible.builtin.template:
+    src: root-app.yaml.j2
+    dest: /tmp/platform-root-infra.yaml
+    mode: "0644"
+
+- name: Root Application 적용
+  ansible.builtin.command:
+    cmd: k3s kubectl apply -f /tmp/platform-root-infra.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: root_apply
+  changed_when: "'created' in root_apply.stdout or 'configured' in root_apply.stdout"
+
+- name: Root Application이 Synced 될 때까지 대기
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl -n {{ argocd_namespace }}
+      get application platform-root-infra
+      -o jsonpath={.status.sync.status}
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: root_sync
+  until: root_sync.stdout == "Synced"
+  retries: 30
+  delay: 10
+  changed_when: false
+  failed_when: false
+
+- name: 부트스트랩 완료 안내
+  ansible.builtin.debug:
+    msg:
+      - "Root Application 적용 완료. ArgoCD가 sync wave 순서로 나머지를 배포합니다."
+      - "진행 상황 확인:"
+      - "  k3s kubectl get applications -n {{ argocd_namespace }} -w"
+      - "전체 컴포넌트가 Healthy 되기까지 약 15-20분 소요될 수 있습니다."

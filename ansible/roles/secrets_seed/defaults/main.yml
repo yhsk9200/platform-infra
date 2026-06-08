@@ -1,0 +1,52 @@
+# =============================================================================
+# secret_definitions — 클러스터에 시드할 시크릿 정의
+# =============================================================================
+# 값은 ansible-vault(vault.yml)에서 온다. 동일 값을 공유해야 하는 항목:
+#   - vault_keycloak_db_password: postgres-db-secret + keycloak-db-secret
+#   - vault_harbor_db_password:   postgres-db-secret + harbor-db-secret
+# manifests/security/의 placeholder SealedSecret과 키 구성이 일치한다.
+# =============================================================================
+
+secret_definitions:
+  - name: postgres-db-secret
+    namespace: platform-db
+    literals:
+      postgres-password: "{{ vault_postgres_superuser_password }}"
+      keycloak-password: "{{ vault_keycloak_db_password }}"
+      harbor-password: "{{ vault_harbor_db_password }}"
+
+  - name: redis-secret
+    namespace: platform-db
+    literals:
+      redis-password: "{{ vault_redis_password }}"
+
+  - name: keycloak-admin-secret
+    namespace: platform-iam
+    literals:
+      admin-password: "{{ vault_keycloak_admin_password }}"
+
+  - name: keycloak-db-secret
+    namespace: platform-iam
+    literals:
+      keycloak-password: "{{ vault_keycloak_db_password }}"
+
+  - name: grafana-admin-secret
+    namespace: platform-monitoring
+    literals:
+      admin-user: "{{ vault_grafana_admin_user }}"
+      admin-password: "{{ vault_grafana_admin_password }}"
+
+  - name: harbor-admin-secret
+    namespace: platform-registry
+    literals:
+      admin-password: "{{ vault_harbor_admin_password }}"
+
+  - name: harbor-core-secret
+    namespace: platform-registry
+    literals:
+      secretKey: "{{ vault_harbor_core_secret_key }}"
+
+  - name: harbor-db-secret
+    namespace: platform-registry
+    literals:
+      password: "{{ vault_harbor_db_password }}"

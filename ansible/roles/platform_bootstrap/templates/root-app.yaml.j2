@@ -1,0 +1,21 @@
+# Templated by Ansible platform_bootstrap role.
+# git_repo_url / git_target_revision는 group_vars/all.yml에서 온다
+# (online: 공개 GitHub, airgap: 내부 git).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-root-infra
+  namespace: {{ argocd_namespace }}
+spec:
+  project: default
+  source:
+    repoURL: "{{ git_repo_url }}"
+    targetRevision: {{ git_target_revision }}
+    path: apps
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: {{ argocd_namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,40 @@
+# =============================================================================
+# 시크릿 값 — 예시 (PLACEHOLDER)
+# =============================================================================
+# 사용법:
+#   1. 이 파일을 vault.yml로 복사
+#        cp vault.example.yml vault.yml
+#   2. 실제 비밀번호로 값 교체
+#   3. ansible-vault로 암호화
+#        ansible-vault encrypt vault.yml
+#   4. 플레이북 실행 시 --ask-vault-pass 또는 --vault-password-file 사용
+#
+# vault.yml은 .gitignore로 커밋에서 제외된다. 이 .example만 커밋한다.
+#
+# secrets_seed role이 이 값들을 읽어 kubeseal로 SealedSecret을 생성하고
+# 클러스터에 적용한다 (docs/porting-guide.md Phase 5 자동화).
+# =============================================================================
+
+# --- 동일 값 공유 그룹 -------------------------------------------------------
+# keycloak DB 비밀번호: postgres-db-secret + keycloak-db-secret 양쪽에 동일 주입
+vault_keycloak_db_password: "CHANGE_ME_keycloak_db"
+# harbor DB 비밀번호: postgres-db-secret + harbor-db-secret 양쪽에 동일 주입
+vault_harbor_db_password: "CHANGE_ME_harbor_db"
+
+# --- PostgreSQL --------------------------------------------------------------
+vault_postgres_superuser_password: "CHANGE_ME_postgres_super"
+
+# --- Redis -------------------------------------------------------------------
+vault_redis_password: "CHANGE_ME_redis"
+
+# --- Keycloak admin ----------------------------------------------------------
+vault_keycloak_admin_password: "CHANGE_ME_keycloak_admin"
+
+# --- Grafana admin -----------------------------------------------------------
+vault_grafana_admin_user: "admin"
+vault_grafana_admin_password: "CHANGE_ME_grafana"
+
+# --- Harbor ------------------------------------------------------------------
+vault_harbor_admin_password: "CHANGE_ME_harbor_admin"
+# 16자 이상 랜덤 문자열 (예: openssl rand -base64 16 | tr -d '=+/')
+vault_harbor_core_secret_key: "CHANGE_ME_16char_key"

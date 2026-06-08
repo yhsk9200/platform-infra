@@ -1,0 +1,61 @@
+# =============================================================================
+# 공통 변수 — 2-mode 심(seam) 포함
+# =============================================================================
+# deployment_mode 하나로 online / airgap 동작을 가른다.
+# Mode A(online)는 현재 완전 구현, Mode B(airgap)는 심만 마련되어 있다
+# (docs/adr/0005-airgap-strategy.md 참조).
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# 배포 모드: "online" | "airgap"
+# ---------------------------------------------------------------------------
+deployment_mode: online
+
+# ---------------------------------------------------------------------------
+# k3s 설정
+# ---------------------------------------------------------------------------
+k3s_version: "v1.31.5+k3s1"
+# online 모드는 get.k3s.io에서 자동 다운로드, airgap 모드는 사전 번들 사용
+k3s_offline: "{{ deployment_mode == 'airgap' }}"
+# k3s 내장 traefik 사용 (ingress). 비활성화하려면 true
+k3s_disable_traefik: false
+
+# server API 주소 (agent join 및 kubeconfig에 사용)
+k3s_server_private_ip: "10.0.1.113"
+# kubeconfig에 기록할 외부 접근 주소 (보통 server 공인 IP)
+k3s_external_apiserver: "{{ k3s_server_private_ip }}"
+
+# ---------------------------------------------------------------------------
+# 이미지 레지스트리 심
+# ---------------------------------------------------------------------------
+# online: 공개 레지스트리 그대로 (빈 값 = 리라이트 없음)
+# airgap: 내부 레지스트리로 containerd 미러 리라이트 (registries_mirror role)
+image_registry: ""   # 예) "harbor.internal" (airgap)
+
+# ---------------------------------------------------------------------------
+# GitOps 레포 심
+# ---------------------------------------------------------------------------
+# online: 공개 GitHub, airgap: 내부 git 서버
+git_repo_url: "https://github.com/yhsk9200/platform-infra.git"
+git_target_revision: "main"
+
+# ---------------------------------------------------------------------------
+# ArgoCD
+# ---------------------------------------------------------------------------
+argocd_namespace: argocd
+argocd_version: "v2.13.2"
+argocd_install_manifest: >-
+  https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_version }}/manifests/install.yaml
+
+# ---------------------------------------------------------------------------
+# Sealed Secrets — Ansible secrets_seed role이 Day-0에 소유 (ADR-0004)
+# ---------------------------------------------------------------------------
+sealed_secrets_namespace: platform-system
+sealed_secrets_controller_name: sealed-secrets-controller
+# 컨트롤러 app 버전 (chart 2.18.4 ≈ app v0.27.x)
+sealed_secrets_controller_version: "v0.27.1"
+sealed_secrets_controller_manifest: >-
+  https://github.com/bitnami-labs/sealed-secrets/releases/download/{{ sealed_secrets_controller_version }}/controller.yaml
+# kubeseal CLI (aarch64)
+kubeseal_version: "0.27.1"
+kubeseal_arch: "arm64"

@@ -1,0 +1,36 @@
+# =============================================================================
+# k3s agent join
+# =============================================================================
+# server play에서 등록한 hostvars[server].k3s_node_token을 사용한다.
+# =============================================================================
+
+- name: server 노드 인벤토리 이름 확인
+  ansible.builtin.set_fact:
+    k3s_server_host: "{{ groups['k3s_server'][0] }}"
+
+- name: k3s install 스크립트 다운로드 (online)
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/bin/k3s-install.sh
+    mode: "0755"
+  when: not (k3s_offline | bool)
+
+- name: k3s agent 설치 및 server join
+  ansible.builtin.command:
+    cmd: /usr/local/bin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_SKIP_DOWNLOAD: "{{ 'true' if k3s_offline | bool else 'false' }}"
+    K3S_URL: "https://{{ k3s_server_private_ip }}:6443"
+    K3S_TOKEN: "{{ hostvars[k3s_server_host].k3s_node_token }}"
+    INSTALL_K3S_EXEC: >-
+      agent
+      --node-ip {{ ansible_host }}
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: k3s-agent 서비스 활성화
+  ansible.builtin.systemd:
+    name: k3s-agent
+    state: started
+    enabled: true

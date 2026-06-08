@@ -1,0 +1,29 @@
+# =============================================================================
+# registries_mirror — k3s containerd 레지스트리 미러 (airgap 전용)
+# =============================================================================
+# site.yml에서 deployment_mode == 'airgap'일 때만 호출된다.
+# k3s는 /etc/rancher/k3s/registries.yaml을 자동 인식하여 containerd 미러를
+# 구성한다. k3s 설치 전에 배치되어야 하므로 preflight 직후 play에서 실행한다.
+# =============================================================================
+
+- name: image_registry 변수 검증
+  ansible.builtin.assert:
+    that:
+      - image_registry | length > 0
+    fail_msg: >-
+      airgap 모드에는 image_registry(내부 레지스트리 주소)가 필요합니다.
+      group_vars/all.yml에서 설정하세요. 예) image_registry: harbor.internal
+
+- name: /etc/rancher/k3s 디렉토리 생성
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+
+- name: registries.yaml 배치
+  ansible.builtin.template:
+    src: registries.yaml.j2
+    dest: /etc/rancher/k3s/registries.yaml
+    mode: "0644"
+  # registries.yaml은 k3s 설치 전(이 play)에 배치되며,
+  # k3s가 최초 기동 시 자동으로 읽으므로 별도 restart가 필요 없다.

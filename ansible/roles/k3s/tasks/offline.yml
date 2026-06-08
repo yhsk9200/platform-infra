@@ -1,0 +1,28 @@
+# =============================================================================
+# k3s offline 자산 준비 — Mode B 심 (STUB, 미구현)
+# =============================================================================
+# 이 task는 deployment_mode == 'airgap'일 때만 호출된다.
+# 현재는 구현 골격만 제공한다. 실제 구현 시 아래 단계를 채운다.
+#
+# 사전 작업 (인터넷 머신, scripts/bundle-offline-assets.sh):
+#   - k3s 바이너리 (aarch64)
+#   - k3s-airgap-images-arm64.tar.zst
+#   - k3s install.sh
+#   를 offline-assets/ 에 번들
+#
+# 이 task가 채워야 할 것:
+#   1. 번들을 각 노드로 복사
+#   2. k3s 바이너리를 /usr/local/bin/k3s (0755)로 배치
+#   3. airgap 이미지 tarball을 /var/lib/rancher/k3s/agent/images/ 로 배치
+#   4. install.sh를 /usr/local/bin/k3s-install.sh 로 배치
+#      (이후 server.yml/agent.yml이 INSTALL_K3S_SKIP_DOWNLOAD=true로 실행)
+#
+# 자세한 전략은 docs/adr/0005-airgap-strategy.md 참조.
+# =============================================================================
+
+- name: Mode B 미구현 안내
+  ansible.builtin.fail:
+    msg: >-
+      airgap 모드(k3s offline 설치)는 아직 구현되지 않은 심(seam)입니다.
+      docs/adr/0005-airgap-strategy.md의 절차에 따라 roles/k3s/tasks/offline.yml을
+      채운 뒤 사용하세요. 현재는 deployment_mode=online으로 실행하세요.

@@ -1,10 +1,13 @@
 # =============================================================================
 # Platform Infrastructure ApplicationSet
 # =============================================================================
-# List Generator를 사용해 12개 child Application을 단일 파일로 관리한다.
+# List Generator를 사용해 10개 child Application을 단일 파일로 관리한다.
 #
 # Harbor는 chart 특성상 ignoreDifferences 설정이 필요해 별도 Application으로
 # 분리했다 (apps/platform-registry-harbor.yaml 참조, ADR 0002 참조).
+#
+# 시크릿 계층(sealed-secrets controller + SealedSecret)은 Ansible이 Day-0에
+# 소유하므로 이 ApplicationSet에 없다 (ADR 0004 참조).
 #
 # 각 element 필드:
 #   name           — ArgoCD Application 이름
@@ -41,25 +44,13 @@ spec:
             serverSideApply: false
 
           # ---------------------------------------------------------------
-          # Wave -2: Sealed Secrets Controller
+          # 시크릿 계층(sealed-secrets controller + SealedSecret 리소스)은
+          # ArgoCD가 아니라 Ansible secrets_seed role이 Day-0에 소유한다.
+          # 클러스터마다 sealing 키가 다르므로 git에 커밋된 암호문은 포팅이
+          # 불가능하다. 따라서 Ansible이 vault → seal → apply 한다.
+          # 자세한 책임 경계는 docs/adr/0004-ansible-argocd-boundary.md 참조.
+          # (이전 wave -2 sealed-secrets, wave -1 secrets 항목은 제거됨)
           # ---------------------------------------------------------------
-          - name: platform-system-sealed-secrets
-            wave: "-2"
-            chartRepo: https://bitnami-labs.github.io/sealed-secrets
-            chart: sealed-secrets
-            targetRevision: "2.18.4"
-            valuesFile: helm-values/system/sealed-secrets-values.yaml
-            namespace: platform-system
-            serverSideApply: false
-
-          # ---------------------------------------------------------------
-          # Wave -1: SealedSecret 리소스 (controller 이후 배포)
-          # ---------------------------------------------------------------
-          - name: platform-infra-secrets
-            wave: "-1"
-            gitPath: manifests/security
-            namespace: ""
-            serverSideApply: false
 
           # ---------------------------------------------------------------
           # Wave 0: 기반 스토리지 / PKI / cert-manager

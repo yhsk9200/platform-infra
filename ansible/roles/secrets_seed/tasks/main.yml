@@ -1,0 +1,105 @@
+# =============================================================================
+# secrets_seed — 시크릿 계층 Day-0 부트스트랩 (k3s server 노드에서 실행)
+# =============================================================================
+# 책임 (ADR-0004):
+#   1. sealed-secrets controller 설치 (Helm)
+#   2. ansible-vault 값을 controller 공개키로 seal
+#   3. SealedSecret을 클러스터에 직접 apply
+# 이렇게 하면 클러스터마다 다른 sealing 키 문제를 Day-0에 해소하고,
+# git에 커밋된 암호문에 의존하지 않으므로 "어느 클러스터에나" 배포된다.
+# =============================================================================
+
+- name: KUBECONFIG / kubeseal 컨트롤러 인자 공통 환경 정의
+  ansible.builtin.set_fact:
+    seed_env:
+      KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    kubeseal_args: >-
+      --controller-name={{ sealed_secrets_controller_name }}
+      --controller-namespace={{ sealed_secrets_namespace }}
+
+# --- CLI 의존성 (helm, kubeseal) --------------------------------------------
+- name: helm 설치 여부 확인
+  ansible.builtin.command: which helm
+  register: helm_check
+  changed_when: false
+  failed_when: false
+
+- name: helm 설치 (online)
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    executable: /bin/bash
+  when: helm_check.rc != 0 and deployment_mode == 'online'
+
+- name: kubeseal 설치 여부 확인
+  ansible.builtin.command: which kubeseal
+  register: kubeseal_check
+  changed_when: false
+  failed_when: false
+
+- name: kubeseal 다운로드 및 설치 (online, aarch64)
+  ansible.builtin.unarchive:
+    src: >-
+      https://github.com/bitnami-labs/sealed-secrets/releases/download/v{{ kubeseal_version }}/kubeseal-{{ kubeseal_version }}-linux-{{ kubeseal_arch }}.tar.gz
+    dest: /usr/local/bin
+    include:
+      - kubeseal
+    remote_src: true
+    mode: "0755"
+  when: kubeseal_check.rc != 0 and deployment_mode == 'online'
+
+# --- sealed-secrets controller (Helm via shell) -----------------------------
+# kubernetes.core 컬렉션/python kubernetes 의존을 피하기 위해 helm CLI를 직접 쓴다.
+- name: bitnami-labs helm repo 추가 및 갱신
+  ansible.builtin.shell: |
+    helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+    helm repo update sealed-secrets
+  environment: "{{ seed_env }}"
+  register: helm_repo
+  changed_when: true
+
+- name: sealed-secrets controller 설치 (platform-system)
+  ansible.builtin.command:
+    cmd: >-
+      helm upgrade --install sealed-secrets sealed-secrets/sealed-secrets
+      --version 2.18.4
+      --namespace {{ sealed_secrets_namespace }}
+      --create-namespace
+      --set fullnameOverride={{ sealed_secrets_controller_name }}
+      --wait --timeout 180s
+  environment: "{{ seed_env }}"
+  register: helm_install
+  changed_when: "'has been upgraded' in helm_install.stdout or 'has been installed' in helm_install.stdout"
+
+- name: controller Deployment Available 대기
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl wait --for=condition=Available
+      deployment/{{ sealed_secrets_controller_name }}
+      -n {{ sealed_secrets_namespace }} --timeout=180s
+  changed_when: false
+
+# --- 시크릿이 들어갈 네임스페이스 보장 --------------------------------------
+- name: 애플리케이션 네임스페이스 생성 (멱등)
+  ansible.builtin.command:
+    cmd: k3s kubectl create namespace {{ item }}
+  register: ns_create
+  changed_when: "'created' in ns_create.stdout"
+  failed_when:
+    - ns_create.rc != 0
+    - "'AlreadyExists' not in ns_create.stderr"
+  loop:
+    - platform-db
+    - platform-iam
+    - platform-monitoring
+    - platform-registry
+
+# --- vault 값 → seal → apply ------------------------------------------------
+# 각 시크릿은 별도 task로 처리한다. no_log로 평문 노출을 방지한다.
+- name: SealedSecret 생성 및 적용
+  ansible.builtin.include_tasks: seal_one.yml
+  loop: "{{ secret_definitions }}"
+  loop_control:
+    loop_var: secret
+    label: "{{ secret.name }} ({{ secret.namespace }})"

@@ -1,0 +1,63 @@
+# =============================================================================
+# argocd — ArgoCD 설치 (k3s server 노드에서 실행)
+# =============================================================================
+# k3s 내장 kubectl을 사용해 python kubernetes 라이브러리 의존을 피한다.
+# KUBECONFIG는 server 노드의 기본 경로를 사용한다.
+# =============================================================================
+
+- name: argocd 네임스페이스 생성
+  ansible.builtin.command:
+    cmd: k3s kubectl create namespace {{ argocd_namespace }}
+  register: argocd_ns
+  changed_when: "'created' in argocd_ns.stdout"
+  failed_when:
+    - argocd_ns.rc != 0
+    - "'AlreadyExists' not in argocd_ns.stderr"
+
+- name: ArgoCD install manifest 적용
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl apply -n {{ argocd_namespace }}
+      -f {{ argocd_install_manifest }}
+  register: argocd_apply
+  changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+
+- name: ArgoCD server Deployment가 Available 될 때까지 대기
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl wait --for=condition=Available
+      deployment/argocd-server
+      -n {{ argocd_namespace }}
+      --timeout=300s
+  register: argocd_wait
+  changed_when: false
+
+- name: ArgoCD repo-server / applicationset-controller 대기
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl wait --for=condition=Available
+      deployment/{{ item }}
+      -n {{ argocd_namespace }}
+      --timeout=300s
+  loop:
+    - argocd-repo-server
+    - argocd-applicationset-controller
+  changed_when: false
+
+- name: ArgoCD admin 초기 비밀번호 추출
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl -n {{ argocd_namespace }}
+      get secret argocd-initial-admin-secret
+      -o jsonpath={.data.password}
+  register: argocd_admin_pw_b64
+  changed_when: false
+  failed_when: false
+
+- name: ArgoCD admin 비밀번호 안내
+  ansible.builtin.debug:
+    msg: >-
+      ArgoCD admin 초기 비밀번호:
+      {{ argocd_admin_pw_b64.stdout | b64decode
+         if argocd_admin_pw_b64.stdout | length > 0
+         else '(이미 변경됨 또는 secret 없음)' }}

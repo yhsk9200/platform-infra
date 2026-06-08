@@ -1,0 +1,67 @@
+# =============================================================================
+# preflight — k3s 설치 전 OS 준비 (Ubuntu 24.04 aarch64)
+# =============================================================================
+
+- name: 시스템 패키지 캐시 갱신 (online 모드)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: deployment_mode == 'online'
+
+- name: 필수 유틸리티 설치
+  ansible.builtin.apt:
+    name:
+      - curl
+      - iptables
+      - apparmor-utils
+    state: present
+  when: deployment_mode == 'online'
+
+# --- swap 비활성화 (kubelet 요구) -------------------------------------------
+- name: swap 즉시 비활성화
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: fstab에서 swap 항목 영구 제거
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+
+# --- 커널 모듈 ---------------------------------------------------------------
+- name: 컨테이너 네트워킹 커널 모듈 로드
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: 부팅 시 커널 모듈 자동 로드
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k3s.conf
+    content: |
+      overlay
+      br_netfilter
+    mode: "0644"
+
+# --- sysctl ------------------------------------------------------------------
+- name: 네트워크 브리지 및 IP 포워딩 sysctl 설정
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-k3s.conf
+    reload: true
+  loop:
+    - { name: net.bridge.bridge-nf-call-iptables, value: "1" }
+    - { name: net.bridge.bridge-nf-call-ip6tables, value: "1" }
+    - { name: net.ipv4.ip_forward, value: "1" }
+
+# --- /etc/hosts: 노드 간 이름 해석 ------------------------------------------
+- name: 클러스터 노드를 /etc/hosts에 등록
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars[item].ansible_host }} {{ item }}"
+    regexp: ".*\\s{{ item }}$"
+    state: present
+  loop: "{{ groups['k3s_cluster'] }}"

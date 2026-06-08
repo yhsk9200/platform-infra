@@ -1,0 +1,23 @@
+# =============================================================================
+# seal_one — 단일 SealedSecret 생성 및 적용
+# =============================================================================
+# secret.literals(dict)를 --from-literal 인자로 펼쳐 plain Secret을 만들고,
+# kubeseal로 봉인한 뒤 클러스터에 적용한다.
+# no_log로 평문 값이 Ansible 출력/로그에 남지 않게 한다.
+# =============================================================================
+
+- name: "{{ secret.name }} — seal & apply"
+  ansible.builtin.shell: |
+    set -o pipefail
+    k3s kubectl create secret generic {{ secret.name }} \
+      --namespace={{ secret.namespace }} \
+      {% for k, v in secret.literals.items() %}--from-literal={{ k }}={{ v | quote }} {% endfor %} \
+      --dry-run=client -o yaml \
+    | kubeseal {{ kubeseal_args }} --format=yaml \
+    | k3s kubectl apply -f -
+  args:
+    executable: /bin/bash
+  environment: "{{ seed_env }}"
+  no_log: true
+  register: seal_result
+  changed_when: "'configured' in seal_result.stdout or 'created' in seal_result.stdout"

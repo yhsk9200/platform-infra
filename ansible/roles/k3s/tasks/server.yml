@@ -1,0 +1,66 @@
+# =============================================================================
+# k3s server 설치
+# =============================================================================
+
+- name: k3s install 스크립트 다운로드 (online)
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/bin/k3s-install.sh
+    mode: "0755"
+  when: not (k3s_offline | bool)
+
+- name: k3s server 설치 실행
+  ansible.builtin.command:
+    cmd: /usr/local/bin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_SKIP_DOWNLOAD: "{{ 'true' if k3s_offline | bool else 'false' }}"
+    INSTALL_K3S_EXEC: >-
+      server
+      --tls-san {{ k3s_external_apiserver }}
+      --tls-san {{ k3s_server_private_ip }}
+      --node-ip {{ k3s_server_private_ip }}
+      {{ '--disable traefik' if k3s_disable_traefik | bool else '' }}
+      {{ '--system-default-registry ' + image_registry if image_registry | length > 0 else '' }}
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: k3s server 서비스 활성화 및 대기
+  ansible.builtin.systemd:
+    name: k3s
+    state: started
+    enabled: true
+
+- name: kube API가 응답할 때까지 대기
+  ansible.builtin.command: k3s kubectl get --raw='/readyz'
+  register: k3s_readyz
+  until: k3s_readyz.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+
+# --- agent join에 필요한 토큰 추출 ------------------------------------------
+- name: node-token 읽기
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_node_token_b64
+
+- name: node-token을 호스트 팩트로 등록 (agent play에서 hostvars로 참조)
+  ansible.builtin.set_fact:
+    k3s_node_token: "{{ k3s_node_token_b64.content | b64decode | trim }}"
+
+# --- kubeconfig를 ansible 컨트롤러로 가져오기 -------------------------------
+- name: kubeconfig 읽기
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/k3s.yaml
+  register: k3s_kubeconfig_b64
+
+- name: kubeconfig를 컨트롤러 로컬에 저장 (외부 접근 주소로 치환)
+  ansible.builtin.copy:
+    content: >-
+      {{ k3s_kubeconfig_b64.content | b64decode
+         | replace('127.0.0.1', k3s_external_apiserver) }}
+    dest: "{{ playbook_dir }}/kubeconfig"
+    mode: "0600"
+  delegate_to: localhost
+  become: false

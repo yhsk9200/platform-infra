@@ -1,0 +1,19 @@
+# =============================================================================
+# k3s — server/agent 설치 디스패처
+# =============================================================================
+# k3s_role 변수("server" | "agent")로 분기한다 (site.yml에서 주입).
+# online: get.k3s.io 설치 스크립트로 자동 다운로드
+# airgap: 사전 번들된 바이너리/이미지 사용 (offline.yml, 현재 stub)
+# =============================================================================
+
+- name: (airgap) 오프라인 자산 준비
+  ansible.builtin.include_tasks: offline.yml
+  when: k3s_offline | bool
+
+- name: k3s server 설치
+  ansible.builtin.include_tasks: server.yml
+  when: k3s_role == 'server'
+
+- name: k3s agent join
+  ansible.builtin.include_tasks: agent.yml
+  when: k3s_role == 'agent'

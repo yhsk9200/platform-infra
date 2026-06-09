@@ -57,6 +57,32 @@
     - { name: net.bridge.bridge-nf-call-ip6tables, value: "1" }
     - { name: net.ipv4.ip_forward, value: "1" }
 
+# --- OCI 호스트 방화벽: k3s/flannel 트래픽 허용 -----------------------------
+# OCI Ubuntu 기본 iptables가 노드 간/CNI 트래픽을 막는 문제 해소.
+- name: netfilter-persistent 설치 (규칙 영구 저장용, online)
+  ansible.builtin.apt:
+    name: iptables-persistent
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when:
+    - oci_firewall_enabled | bool
+    - deployment_mode == 'online'
+
+- name: 클러스터 CIDR에 대한 INPUT ACCEPT 규칙 삽입
+  ansible.builtin.iptables:
+    chain: INPUT
+    source: "{{ item }}"
+    jump: ACCEPT
+    action: insert
+    comment: "k3s cluster traffic ({{ item }})"
+  loop:
+    - "{{ cluster_node_cidr }}"
+    - "{{ k3s_cluster_cidr }}"
+    - "{{ k3s_service_cidr }}"
+  when: oci_firewall_enabled | bool
+  notify: persist iptables
+
 # --- /etc/hosts: 노드 간 이름 해석 ------------------------------------------
 - name: 클러스터 노드를 /etc/hosts에 등록
   ansible.builtin.lineinfile:

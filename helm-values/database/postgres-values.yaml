@@ -25,8 +25,15 @@ image:
 architecture: standalone
 
 primary:
+  # PVC를 사전 생성하지 않고 chart의 StatefulSet volumeClaimTemplate이 만든다.
+  # local-path(WaitForFirstConsumer)에서 PVC와 소비 Pod가 같은 wave에 생겨
+  # 즉시 바인딩되므로 사전 생성 PVC의 Pending 데드락을 피한다.
   persistence:
-    existingClaim: postgres-pvc
+    enabled: true
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
   resources:
     requests:
       cpu: 250m

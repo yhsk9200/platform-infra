@@ -1,7 +1,7 @@
 # =============================================================================
 # Platform PKI — Self-Signed ClusterIssuer 체인
 # =============================================================================
-# 배포 순서 (sync wave 0 — cert-manager controller 설치 후 동기화됨):
+# 배포 순서 (sync wave 1 — cert-manager(wave 0)가 Healthy해진 뒤 동기화됨):
 #
 #   1. ClusterIssuer/selfsigned-issuer  — 자기 서명 루트용 issuer
 #   2. Certificate/platform-root-ca     — 루트 CA 인증서 (cert-manager ns에 저장)

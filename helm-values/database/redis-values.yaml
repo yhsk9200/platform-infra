@@ -21,8 +21,13 @@ auth:
   existingSecretPasswordKey: "redis-password"
 
 master:
+  # chart의 volumeClaimTemplate이 PVC를 생성한다 (사전 생성 PVC 데드락 회피).
   persistence:
-    existingClaim: redis-pvc
+    enabled: true
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
   resources:
     requests:
       cpu: 100m

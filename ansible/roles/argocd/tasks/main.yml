@@ -14,13 +14,17 @@
     - argocd_ns.rc != 0
     - "'AlreadyExists' not in argocd_ns.stderr"
 
-- name: ArgoCD install manifest 적용
+- name: ArgoCD install manifest 적용 (server-side)
+  # ArgoCD install.yaml은 대형 CRD를 포함한다. client-side apply는
+  # last-applied-configuration annotation 크기 한계(262144B)를 초과할 수
+  # 있으므로 server-side apply를 사용한다.
   ansible.builtin.command:
     cmd: >-
-      k3s kubectl apply -n {{ argocd_namespace }}
+      k3s kubectl apply --server-side --force-conflicts
+      -n {{ argocd_namespace }}
       -f {{ argocd_install_manifest }}
   register: argocd_apply
-  changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+  changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout or 'serverside-applied' in argocd_apply.stdout"
 
 - name: ArgoCD server Deployment가 Available 될 때까지 대기
   ansible.builtin.command:

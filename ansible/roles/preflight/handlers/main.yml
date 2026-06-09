@@ -1,0 +1,10 @@
+# =============================================================================
+# preflight handlers
+# =============================================================================
+
+- name: persist iptables
+  # netfilter-persistent로 현재 규칙을 /etc/iptables/rules.v4에 저장해
+  # 재부팅 후에도 ACCEPT 규칙이 유지되도록 한다.
+  ansible.builtin.command: netfilter-persistent save
+  changed_when: true
+  failed_when: false

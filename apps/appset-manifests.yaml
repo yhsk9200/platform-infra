@@ -1,0 +1,51 @@
+# =============================================================================
+# Git manifest 컴포넌트 ApplicationSet
+# =============================================================================
+# Git 경로의 plain manifest를 배포하는 컴포넌트를 단일 template으로 관리한다.
+# Helm 차트 컴포넌트(source 구조가 다름)는 apps/appset-charts.yaml로 분리했다.
+# 분리 이유는 appset-charts.yaml 상단 주석과 ADR-0002 참조.
+#
+# 각 element 필드: name / wave / path
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-manifests
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-9"
+spec:
+  goTemplate: true
+  generators:
+    - list:
+        elements:
+          # Wave -3: 공용 네임스페이스 사전 생성
+          - name: platform-infra-namespaces
+            wave: "-3"
+            path: manifests/namespaces
+
+          # Wave 1: cert-manager(wave 0) Healthy 이후 PKI 체인 생성
+          - name: platform-infra-pki
+            wave: "1"
+            path: manifests/pki
+
+  template:
+    metadata:
+      name: "{{ .name }}"
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{ .wave }}"
+    spec:
+      project: platform-infra
+      source:
+        repoURL: "https://github.com/yhsk9200/platform-infra.git"
+        targetRevision: main
+        path: "{{ .path }}"
+      destination:
+        server: https://kubernetes.default.svc
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - ServerSideApply=true

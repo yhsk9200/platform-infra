@@ -2,6 +2,8 @@
 
 OCI VM.Standard.A1.Flex (ARM64) 기반 2-node k3s 클러스터에 이 레포를 배포하는 전체 순서입니다.
 
+> **권장 경로는 Ansible 자동 배포입니다.** 실제 인스턴스에서 단계별로 수행할 운영 절차(OCI 보안 목록, 컨트롤 노드, 실행, 검증, 접근, 트러블슈팅)는 **[docs/runbook-deploy.md](runbook-deploy.md)** 를 따르세요. 이 문서는 ARM64 이미지 검증과 내부 동작 이해를 위한 수동/참조 절차입니다.
+
 ## 환경 요구 사항
 
 | 항목 | 값 |
@@ -106,7 +108,8 @@ YOUR_GH_USER=<실제_GitHub_username>
 sed -i "s/<YOUR_GITHUB_USERNAME>/${YOUR_GH_USER}/g" \
   bootstrap/root-app.yaml \
   apps/appproject-platform-infra.yaml \
-  apps/platform-appset.yaml \
+  apps/appset-charts.yaml \
+  apps/appset-manifests.yaml \
   apps/platform-registry-harbor.yaml
 ```
 
@@ -241,15 +244,15 @@ kubectl get applications -n argocd -w
 
 예상 배포 순서:
 
+> 시크릿 계층(sealed-secrets controller + SealedSecret)은 ArgoCD 웨이브가 아니라 Ansible `secrets_seed`가 Day-0에 시드합니다(ADR-0004). 아래 표는 ArgoCD 관리 범위입니다.
+
 | Wave | App | 예상 소요 |
 |------|-----|---------|
 | -10 | AppProject | 즉시 |
 | -9 | ApplicationSet | 즉시 |
 | -3 | platform-infra-namespaces | 즉시 |
-| -2 | platform-system-sealed-secrets | ~1분 |
-| -1 | platform-infra-secrets | 즉시 |
-| 0 | storage, pki, cert-manager | ~2분 |
-| 1 | postgres, redis | ~3분 |
+| 0 | cert-manager | ~2분 |
+| 1 | pki, postgres, redis | ~3분 |
 | 2 | keycloak | ~3분 |
 | 3 | prometheus | ~5분 |
 | 4 | loki, harbor | ~5분 |
@@ -287,4 +290,4 @@ kubectl port-forward svc/platform-iam-keycloak \
 | Node2 | Harbor (registry) | 20 GB |
 | Node2 | Harbor (기타) | 15 GB |
 
-local-path는 처음 마운트된 노드에 바인딩됩니다. 각 노드에 할당되어야 할 워크로드가 올바른 노드에 스케줄되는지 확인하고, 필요하면 nodeSelector 또는 nodeAffinity를 추가합니다.
+PVC는 각 chart의 volumeClaimTemplate이 생성합니다(사전 생성 PVC 없음). local-path는 처음 마운트된 노드에 바인딩되므로, 위 배치는 스케줄러 결과에 따른 *권장치*이며 강제되지 않습니다. 노드 고정이 필요하면 각 chart values에 nodeSelector/affinity를 추가합니다.

@@ -28,21 +28,21 @@ Ansible이 k3s·ArgoCD·시크릿을 부트스트랩한 뒤 Root Application을 
 ansible/site.yml  (Day-0: k3s + ArgoCD + 시크릿 시드 + root-app 적용)
   └── apps/
       ├── appproject-platform-infra.yaml   (ArgoCD AppProject, wave -10)
-      └── platform-appset.yaml             (ApplicationSet, wave -9)
-            ├── platform-infra-namespaces
-            ├── platform-infra-storage
-            ├── platform-infra-pki
-            ├── platform-system-cert-manager
-            ├── platform-db-postgres
-            ├── platform-db-redis
-            ├── platform-iam-keycloak
-            ├── platform-monitoring-prometheus
-            ├── platform-monitoring-loki
-            └── platform-monitoring-alloy
-
+      ├── appset-manifests.yaml            (ApplicationSet, git manifest 앱)
+      │     ├── platform-infra-namespaces
+      │     └── platform-infra-pki
+      ├── appset-charts.yaml               (ApplicationSet, Helm 차트 앱)
+      │     ├── platform-system-cert-manager
+      │     ├── platform-db-postgres
+      │     ├── platform-db-redis
+      │     ├── platform-iam-keycloak
+      │     ├── platform-monitoring-prometheus
+      │     ├── platform-monitoring-loki
+      │     └── platform-monitoring-alloy
       └── platform-registry-harbor.yaml    (Harbor 전용 Application, wave 4)
 ```
 
+- **ApplicationSet 2개로 분리**: ArgoCD ApplicationSet은 Helm처럼 raw-text를 렌더링하지 않고 유효한 YAML이어야 합니다. `source`(git 단일)와 `sources`(차트+values) 구조 분기를 한 template에 담을 수 없어, git manifest 앱(`appset-manifests`)과 Helm 차트 앱(`appset-charts`)으로 나눴습니다 ([ADR-0002](docs/adr/0002-applicationset-vs-individual-apps.md)).
 - **시크릿 계층**(sealed-secrets controller + SealedSecret)은 ArgoCD가 아니라 **Ansible이 Day-0에 소유**합니다. 클러스터마다 sealing 키가 다르기 때문입니다 ([ADR-0004](docs/adr/0004-ansible-argocd-boundary.md)).
 - **Harbor**만 별도 Application으로 분리한 이유는 [ADR-0002](docs/adr/0002-applicationset-vs-individual-apps.md)를 참조합니다.
 
@@ -51,10 +51,10 @@ ansible/site.yml  (Day-0: k3s + ArgoCD + 시크릿 시드 + root-app 적용)
 | Wave | Application | 역할 |
 |------|-------------|------|
 | `-10` | `appproject-platform-infra` | ArgoCD AppProject |
-| `-9` | `platform-appset` | ApplicationSet (이 레포의 핵심) |
+| `-9` | `platform-manifests`, `platform-charts` | ApplicationSet 2개 (이 레포의 핵심) |
 | `-3` | `platform-infra-namespaces` | 공용 네임스페이스 생성 |
-| `0` | `platform-infra-storage`, `platform-infra-pki`, `platform-system-cert-manager` | PVC, PKI 체인, cert-manager |
-| `1` | `platform-db-postgres`, `platform-db-redis` | 공용 데이터베이스 |
+| `0` | `platform-system-cert-manager` | cert-manager (CRD + webhook) |
+| `1` | `platform-infra-pki`, `platform-db-postgres`, `platform-db-redis` | PKI 체인, 공용 데이터베이스 (chart가 PVC 생성) |
 | `2` | `platform-iam-keycloak` | 인증/인가 (PostgreSQL 의존) |
 | `3` | `platform-monitoring-prometheus` | Prometheus, Grafana, Alertmanager |
 | `4` | `platform-monitoring-loki`, `platform-registry-harbor` | 로그 저장소, 컨테이너 레지스트리 |
@@ -118,17 +118,18 @@ platform-infra/
 │   └── root-app.yaml                    # 수동 적용용 (Ansible은 템플릿으로 별도 생성)
 ├── apps/
 │   ├── appproject-platform-infra.yaml
-│   ├── platform-appset.yaml             # ApplicationSet (10개 컴포넌트)
+│   ├── appset-manifests.yaml            # ApplicationSet: git manifest 앱 (2개)
+│   ├── appset-charts.yaml               # ApplicationSet: Helm 차트 앱 (7개)
 │   └── platform-registry-harbor.yaml    # Harbor 단독 Application
 ├── manifests/
 │   ├── namespaces/
 │   ├── pki/                             # cert-manager ClusterIssuer 체인
-│   ├── security/                        # SealedSecret 참조 템플릿 (Ansible이 시드)
-│   └── storage/
+│   └── security/                        # SealedSecret 참조 템플릿 (Ansible이 시드)
 ├── helm-values/
 │   ├── database/ iam/ monitoring/ registry/ system/
 └── docs/
-    ├── porting-guide.md
+    ├── runbook-deploy.md                # 인스턴스 배포 운영 절차서 (★ 시작점)
+    ├── porting-guide.md                 # ARM64 검증 + 수동/참조 절차
     └── adr/
         ├── 0001-ai-model-simulator-platform.md
         ├── 0002-applicationset-vs-individual-apps.md
@@ -155,7 +156,7 @@ vi inventory/group_vars/vault.yml && ansible-vault encrypt inventory/group_vars/
 ansible-playbook site.yml --ask-vault-pass
 ```
 
-수동 절차(Ansible 없이) 및 air-gap 세부는 [docs/porting-guide.md](docs/porting-guide.md)와 [ansible/README.md](ansible/README.md)를 참조합니다.
+인스턴스에서 수행할 **전체 운영 절차(OCI 보안목록, 검증, 접근, 트러블슈팅)는 [docs/runbook-deploy.md](docs/runbook-deploy.md)** 를 따릅니다. ARM64 이미지 검증·수동 절차는 [docs/porting-guide.md](docs/porting-guide.md), Ansible 상세는 [ansible/README.md](ansible/README.md)를 참조합니다.
 
 ## SealedSecret 구성
 
